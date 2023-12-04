@@ -1,0 +1,115 @@
+---
+title: "week 3 project"
+author: ""
+date: "2023-11-05"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+## NYPD Data Analysis
+
+We will be analyzing crime incidents provided in this csv file
+NYPD_Shooting_Incident_Data__Historic_.csv
+
+Which can be found on this resource:
+
+https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic/resource/c564b578-fd8a-4005-8365-34150d306cc4
+
+And we can read the csv file and perform analysis with R packages here step by step:
+
+Creating a variable for the URL:
+```{r include=TRUE}
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+```
+
+Creating a variable for reading the data:
+```{r include=TRUE}
+library(tidyverse)
+nypd_cases <- read_csv(url_in)
+```
+
+Display the data:
+
+
+```{r , include=TRUE}
+
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+nypd_cases <- read_csv(url_in)
+
+```
+
+```{r nypd_cases}
+nypd_cases
+```
+
+There are a few columns with almost no data, mostly nulls, which will not be very useful in our analysis - let's remove those columns. Also, the OCCURE_DATE column is not date type, we will convert it from string to date.
+
+```{r , include=TRUE}
+nypd_cases_clean <- nypd_cases %>% 
+  select(-c(LOC_OF_OCCUR_DESC, LOC_CLASSFCTN_DESC, LOCATION_DESC, JURISDICTION_CODE, X_COORD_CD, Y_COORD_CD, LOC_CLASSFCTN_DESC))
+nypd_cases_clean$OCCUR_DATE <- as.Date(nypd_cases_clean$OCCUR_DATE, "%m/%d/%Y")
+nypd_cases_clean$INCIDENT_KEY <- as.character(nypd_cases_clean$INCIDENT_KEY)
+nypd_cases_clean$HOUR <- round(as.POSIXct(nypd_cases_clean$OCCUR_TIME, format="%H:%M"), unit="hours")
+```
+This graph shows perpetrators by age.
+```{r , include=TRUE}
+nypd_cases_clean_dr <- nypd_cases_clean%>%
+ggplot(aes(x=PERP_AGE_GROUP, y=INCIDENT_KEY))+
+geom_col()
+nypd_cases_clean_dr
+```
+
+```{r, include=TRUE}
+summary(nypd_cases_clean)
+```
+
+We still have columns with missing values such as PERP_AGE_GROUP, PERP_SEX and PERP_RACE, and a few other columns, but I would like to keep it because it has about 50% of data which may be useful in analysis. In the next steps I am going to fill nulls with "Unknown" value.
+
+Plotting a temporal graph to find the trend and compare the boros. First, we group the data by boros and months.
+
+```{r , include=TRUE}
+cases_grouped <- nypd_cases_clean %>% group_by(BORO, month = lubridate::floor_date(OCCUR_DATE, 'month')) %>% count()
+graph_cases <- cases_grouped %>% ggplot(aes(x = month, y=n, color=BORO))+geom_line()
+```
+
+```{r graph_cases}
+graph_cases
+```
+
+It would be interesting to see if there is a particular time when crime cases spike. We will create a new column "HOUR" by rounding time and extracting hour. Then we will aggregate and count cases by boros and hours.  
+
+```{r include=TRUE}
+nypd_cases_clean$HOUR <- round(as.POSIXct(nypd_cases_clean$OCCUR_TIME, format="%H:%M"), unit="hours")
+
+cases_grouped_hour <- nypd_cases_clean %>% group_by(BORO, HOUR) %>% count()
+
+cases_grouped_hour$HOUR <- hour(cases_grouped_hour$HOUR)
+
+graph_cases_hour <- cases_grouped_hour %>% ggplot(aes(x = HOUR, y=n, color=BORO))+geom_line()
+```
+
+```{r, graph_cases_hour}
+graph_cases_hour
+```
+<br/>
+Here we clearly see the trend - there is maximum crime at night.But what is very interesting is that around midnight the number drops compared to 11 pm, and then goes up till 3 or 4 am.
+<br/>
+By looking at the year-over-year graph there is significant difference between boros. Why is Brooklyn leading the number of crime cases? Is it the most populated boro? It would be helpful to analyze the demographics of each of them. And I would identify this as a bias source including my own bias. I think it is common for people to make a correlation between demographic statuses and crime probability.  
+<br/>
+Also, I would be very interested to know the economic situation year over year to answer the question Why was there minimum crimes at around 2017 and then it spiked after 2020? This would probably be another source of bias that is driving my thinking on this type of analysis - we tend to think that bad economic situation is often one of the crime causes.
+<br/>
+In addition, it's interesting to observe seasonality in every boro except for Staten Island. That would also need some additional investigation.
+
+
+
+
+
